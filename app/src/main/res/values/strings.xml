@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grizz</string>
+    <string name="widget_label">Next up</string>
+    <string name="widget_description">The number of days to your next event.</string>
+</resources>

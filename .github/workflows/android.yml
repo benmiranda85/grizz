@@ -5,9 +5,15 @@ on:
     branches: ['**']
   workflow_dispatch:
 
+# A newer push supersedes an in-flight build on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +36,8 @@ jobs:
           restore-keys: gradle-
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        timeout-minutes: 25
+        run: ./gradlew assembleDebug --no-daemon --stacktrace -Dorg.gradle.console=plain
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

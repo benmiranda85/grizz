@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Countdown Dashboard</title>
+
+<style>
+  /* ---------------------------------------------------------------
+     Basic page setup. `box-sizing: border-box` makes width/height
+     math (padding + border included in the size) predictable
+     everywhere, which saves a lot of layout headaches.
+  --------------------------------------------------------------- */
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f4f5f7;
+    color: #1f2430;
+  }
+
+  /* Center the whole app and keep a comfortable max width so the
+     circles don't stretch out too far on wide desktop screens. */
+  #app {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+    margin: 0;
+  }
+
+  /* A reusable "pill" button style used for the Add Event button
+     and the buttons inside the dialog. */
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    background: #4f46e5;
+    color: white;
+    transition: opacity 0.15s ease;
+  }
+
+  button:hover {
+    opacity: 0.85;
+  }
+
+  button.secondary {
+    background: #e5e7eb;
+    color: #1f2430;
+  }
+
+  button.danger {
+    background: #dc2626;
+  }
+
+  /* ---------------------------------------------------------------
+     The grid of event circles. Flexbox with `flex-wrap: wrap` is
+     the key to a layout that reflows nicely on phones/tablets:
+     circles simply drop to the next line when there isn't room.
+  --------------------------------------------------------------- */
+  #eventGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+  }
+
+  #emptyState {
+    text-align: center;
+    color: #6b7280;
+    padding: 48px 16px;
+  }
+
+  .event-card {
+    position: relative;
+    width: 130px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  /* The circle itself is a plain <button> so it's keyboard/tap
+     accessible. It has no visible button chrome of its own -
+     the SVG ring inside supplies all the visuals. */
+  .circle-button {
+    background: none;
+    padding: 0;
+    border-radius: 50%;
+    width: 110px;
+    height: 110px;
+    display: block;
+  }
+
+  .circle-button svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* The day-count text drawn inside the SVG. Font size is set in
+     SVG user-units (the viewBox is 0-100) so it scales with the
+     circle automatically. */
+  .day-count {
+    font-size: 26px;
+    font-weight: 700;
+    fill: #1f2430;
+  }
+
+  .today-label {
+    font-size: 16px;
+    font-weight: 700;
+    fill: #1f2430;
+  }
+
+  .event-name {
+    margin-top: 8px;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  .event-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .event-actions button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    background: #e5e7eb;
+    color: #374151;
+  }
+
+  .event-actions button.delete-btn {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  /* ---------------------------------------------------------------
+     The add/edit dialog. <dialog> is a built-in HTML element that
+     gives us a modal (with a backdrop and focus-trapping) for free
+     - no JS library needed.
+  --------------------------------------------------------------- */
+  dialog {
+    border: none;
+    border-radius: 12px;
+    padding: 24px;
+    width: 90%;
+    max-width: 360px;
+  }
+
+  dialog::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  dialog h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+  }
+
+  .form-row {
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-row label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .form-row input[type="text"],
+  .form-row input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+  }
+
+  .form-row input[type="color"] {
+    width: 100%;
+    height: 40px;
+    padding: 2px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: none;
+  }
+
+  .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Push the "Delete" button to the far left of the button row so
+     it doesn't sit right next to Save/Cancel and invite mis-taps. */
+  .dialog-buttons .danger {
+    margin-right: auto;
+  }
+</style>
+</head>
+<body>
+
+  <div id="app">
+
+    <header>
+      <h1>Countdown Dashboard</h1>
+      <button id="addEventBtn">+ Add Event</button>
+    </header>
+
+    <!-- Shown only when there are zero events saved. -->
+    <p id="emptyState" hidden>No events yet — add one to get started!</p>
+
+    <!-- All event circles get rendered into this container by JS. -->
+    <div id="eventGrid"></div>
+
+  </div>
+
+  <!-- ---------------------------------------------------------------
+       The add/edit form lives inside a <dialog>. We reuse the same
+       dialog for both "Add" and "Edit" - JS just changes the title,
+       pre-fills the fields, and remembers which event (if any) is
+       being edited.
+  --------------------------------------------------------------- -->
+  <dialog id="eventDialog">
+    <form id="eventForm">
+      <h2 id="dialogTitle">Add Event</h2>
+
+      <!-- Hidden field that holds the id of the event being edited.
+           Empty string means "we're adding a brand new event". -->
+      <input type="hidden" id="eventId">
+
+      <div class="form-row">
+        <label for="eventName">Name</label>
+        <input type="text" id="eventName" maxlength="40" required>
+      </div>
+
+      <div class="form-row">
+        <label for="eventDate">Date</label>
+        <input type="date" id="eventDate" required>
+      </div>
+
+      <div class="form-row">
+        <label for="eventColor">Color</label>
+        <input type="color" id="eventColor" value="#4f46e5" required>
+      </div>
+
+      <div class="dialog-buttons">
+        <!-- Only shown when editing an existing event. -->
+        <button type="button" id="deleteBtn" class="danger" hidden>Delete</button>
+        <button type="button" id="cancelBtn" class="secondary">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    /* =================================================================
+       COUNTDOWN DASHBOARD - app logic
+       ---------------------------------------------------------------
+       Everything below is plain, dependency-free JavaScript. The app
+       keeps its data (the list of events) in one array, and every
+       time that array changes we (1) save it to localStorage and
+       (2) re-draw the circles from scratch. That "redraw everything
+       from the data" pattern is simple to reason about, even if it's
+       not the most efficient approach a bigger app would use.
+    ================================================================= */
+
+    // The localStorage key we save our events under. Namespacing it
+    // like this avoids clashing with any other app that might use
+    // the same browser storage.
+    const STORAGE_KEY = "countdown-dashboard-events";
+
+    // Grab references to the DOM elements we'll need repeatedly.
+    const eventGrid = document.getElementById("eventGrid");
+    const emptyState = document.getElementById("emptyState");
+    const addEventBtn = document.getElementById("addEventBtn");
+    const eventDialog = document.getElementById("eventDialog");
+    const eventForm = document.getElementById("eventForm");
+    const dialogTitle = document.getElementById("dialogTitle");
+    const eventIdInput = document.getElementById("eventId");
+    const eventNameInput = document.getElementById("eventName");
+    const eventDateInput = document.getElementById("eventDate");
+    const eventColorInput = document.getElementById("eventColor");
+    const deleteBtn = document.getElementById("deleteBtn");
+    const cancelBtn = document.getElementById("cancelBtn");
+
+    // In-memory list of events. Each event looks like:
+    //   { id: "abc123", name: "Vacation", date: "2026-07-01", color: "#4f46e5" }
+    // We load whatever was saved last time, or start with an empty list.
+    let events = loadEvents();
+
+    /**
+     * Reads the saved events out of localStorage.
+     * Wrapped in try/catch because localStorage can contain garbage
+     * (e.g. if it was edited by hand, or from an older app version)
+     * and JSON.parse would throw on invalid data.
+     */
+    function loadEvents() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        console.error("Could not read saved events, starting fresh.", err);
+        return [];
+      }
+    }
+
+    /** Writes the current `events` array to localStorage as JSON. */
+    function saveEvents() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+    }
+
+    /**
+     * Generates a reasonably unique id for a new event.
+     * `crypto.randomUUID()` is supported in all modern browsers, but
+     * we fall back to a timestamp+random combo just in case.
+     */
+    function makeId() {
+      if (window.crypto && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    /**
+     * Calculates the number of whole days between today and the
+     * given target date string ("YYYY-MM-DD").
+     *   0   -> the event is today
+     *   +N  -> N days remaining until the event
+     *   -N  -> N days have passed since the event
+     *
+     * Both dates are converted to *local* midnight before subtracting,
+     * which avoids the classic off-by-one bug you can get from time
+     * zones and daylight saving time.
+     */
+    function daysUntil(dateStr) {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const target = new Date(year, month - 1, day); // local midnight, target date
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local midnight, today
+
+      const msPerDay = 1000 * 60 * 60 * 24;
+      return Math.round((target - today) / msPerDay);
+    }
+
+    /**
+     * Builds the little SVG ring for one event: a colored circle
+     * outline with the day count (or "Today") centered inside it.
+     * Returns an SVG string, which we drop straight into the page.
+     */
+    function buildCircleSvg(event, dayCount) {
+      const label = dayCount === 0 ? "Today" : String(dayCount);
+      const textClass = dayCount === 0 ? "today-label" : "day-count";
+
+      // viewBox 0 0 100 100 lets us describe the circle using nice
+      // round numbers; the SVG then scales to whatever size the CSS
+      // gives the <svg> element (see .circle-button svg in the CSS).
+      return `
+        <svg viewBox="0 0 100 100">
+          <!-- Soft tinted fill using the event's color -->
+          <circle cx="50" cy="50" r="45" fill="${event.color}" fill-opacity="0.15"></circle>
+          <!-- Colored ring around the edge -->
+          <circle cx="50" cy="50" r="45" fill="none" stroke="${event.color}" stroke-width="6"></circle>
+          <!-- Day count / "Today" label, centered -->
+          <text x="50" y="53" text-anchor="middle" dominant-baseline="middle" class="${textClass}">${label}</text>
+        </svg>
+      `;
+    }
+
+    /**
+     * Clears the grid and redraws one card per saved event.
+     * This is the single function that turns `events` (data) into
+     * what's on screen - call it any time `events` changes.
+     */
+    function render() {
+      eventGrid.innerHTML = "";
+      emptyState.hidden = events.length > 0;
+
+      for (const event of events) {
+        const dayCount = daysUntil(event.date);
+
+        const card = document.createElement("div");
+        card.className = "event-card";
+        card.innerHTML = `
+          <button class="circle-button" title="Edit ${event.name}">
+            ${buildCircleSvg(event, dayCount)}
+          </button>
+          <div class="event-name">${escapeHtml(event.name)}</div>
+          <div class="event-actions">
+            <button type="button" class="edit-btn">Edit</button>
+            <button type="button" class="delete-btn">Delete</button>
+          </div>
+        `;
+
+        // Both the circle itself and the "Edit" text open the dialog
+        // pre-filled with this event's details.
+        card.querySelector(".circle-button").addEventListener("click", () => openEditDialog(event.id));
+        card.querySelector(".edit-btn").addEventListener("click", () => openEditDialog(event.id));
+        card.querySelector(".delete-btn").addEventListener("click", () => deleteEvent(event.id));
+
+        eventGrid.appendChild(card);
+      }
+    }
+
+    /**
+     * Escapes text before we insert it into innerHTML, so an event
+     * name like "<script>" is shown as plain text rather than being
+     * interpreted as markup.
+     */
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    /** Opens the dialog in "Add" mode, with blank/default fields. */
+    function openAddDialog() {
+      dialogTitle.textContent = "Add Event";
+      eventIdInput.value = "";
+      eventNameInput.value = "";
+      eventDateInput.value = "";
+      eventColorInput.value = "#4f46e5";
+      deleteBtn.hidden = true; // can't delete something that doesn't exist yet
+      eventDialog.showModal();
+    }
+
+    /** Opens the dialog in "Edit" mode, pre-filled with one event's data. */
+    function openEditDialog(id) {
+      const event = events.find((e) => e.id === id);
+      if (!event) return;
+
+      dialogTitle.textContent = "Edit Event";
+      eventIdInput.value = event.id;
+      eventNameInput.value = event.name;
+      eventDateInput.value = event.date;
+      eventColorInput.value = event.color;
+      deleteBtn.hidden = false;
+      eventDialog.showModal();
+    }
+
+    /** Removes an event (after confirmation) and re-renders. */
+    function deleteEvent(id) {
+      const event = events.find((e) => e.id === id);
+      if (!event) return;
+
+      const confirmed = confirm(`Delete "${event.name}"? This can't be undone.`);
+      if (!confirmed) return;
+
+      events = events.filter((e) => e.id !== id);
+      saveEvents();
+      render();
+    }
+
+    // ---- Wire up the buttons and form ----
+
+    addEventBtn.addEventListener("click", openAddDialog);
+    cancelBtn.addEventListener("click", () => eventDialog.close());
+
+    // Clicking the "Delete" button inside the dialog deletes the
+    // event currently being edited, then closes the dialog.
+    deleteBtn.addEventListener("click", () => {
+      const id = eventIdInput.value;
+      deleteEvent(id);
+      eventDialog.close();
+    });
+
+    // Handles Save for both "Add" and "Edit", since both modes share
+    // the same form.
+    eventForm.addEventListener("submit", (e) => {
+      e.preventDefault(); // stop the browser from reloading the page
+
+      const id = eventIdInput.value;
+      const name = eventNameInput.value.trim();
+      const date = eventDateInput.value;
+      const color = eventColorInput.value;
+
+      if (!name || !date) return; // "required" attributes should already catch this
+
+      if (id) {
+        // Editing: find the existing event and update its fields.
+        const event = events.find((e) => e.id === id);
+        if (event) {
+          event.name = name;
+          event.date = date;
+          event.color = color;
+        }
+      } else {
+        // Adding: push a brand new event onto the list.
+        events.push({ id: makeId(), name, date, color });
+      }
+
+      saveEvents();
+      render();
+      eventDialog.close();
+    });
+
+    // ---- Initial paint ----
+    render();
+  </script>
+
+</body>
+</html>

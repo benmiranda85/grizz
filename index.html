@@ -206,6 +206,12 @@
     background: none;
   }
 
+  .form-error {
+    margin: -8px 0 16px;
+    color: #b91c1c;
+    font-size: 0.85rem;
+  }
+
   .dialog-buttons {
     display: flex;
     justify-content: flex-end;
@@ -253,18 +259,24 @@
 
       <div class="form-row">
         <label for="eventName">Name</label>
-        <input type="text" id="eventName" maxlength="40" required>
+        <input type="text" id="eventName" maxlength="40">
       </div>
 
       <div class="form-row">
         <label for="eventDate">Date</label>
-        <input type="date" id="eventDate" required>
+        <input type="date" id="eventDate">
       </div>
 
       <div class="form-row">
         <label for="eventColor">Color</label>
-        <input type="color" id="eventColor" value="#4f46e5" required>
+        <input type="color" id="eventColor" value="#4f46e5">
       </div>
+
+      <!-- We validate with our own JS (see the submit handler below)
+           instead of relying on the browser's built-in "required"
+           popup, which can fail to appear inside a <dialog> in some
+           browsers - that made Save look like it was doing nothing. -->
+      <p id="formError" class="form-error" hidden></p>
 
       <div class="dialog-buttons">
         <!-- Only shown when editing an existing event. -->
@@ -305,6 +317,7 @@
     const eventColorInput = document.getElementById("eventColor");
     const deleteBtn = document.getElementById("deleteBtn");
     const cancelBtn = document.getElementById("cancelBtn");
+    const formError = document.getElementById("formError");
 
     // In-memory list of events. Each event looks like:
     //   { id: "abc123", name: "Vacation", date: "2026-07-01", color: "#4f46e5" }
@@ -441,9 +454,21 @@
       dialogTitle.textContent = "Add Event";
       eventIdInput.value = "";
       eventNameInput.value = "";
-      eventDateInput.value = "";
       eventColorInput.value = "#4f46e5";
       deleteBtn.hidden = true; // can't delete something that doesn't exist yet
+      hideFormError();
+
+      // Default to today's date so the field is never left empty by
+      // accident - "YYYY-MM-DD" is exactly the format <input type="date">
+      // expects, and toISOString() always gives us UTC, so we build the
+      // string from local year/month/day instead to avoid a timezone
+      // shift landing on the wrong day.
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      eventDateInput.value = `${yyyy}-${mm}-${dd}`;
+
       eventDialog.showModal();
     }
 
@@ -458,7 +483,20 @@
       eventDateInput.value = event.date;
       eventColorInput.value = event.color;
       deleteBtn.hidden = false;
+      hideFormError();
       eventDialog.showModal();
+    }
+
+    /** Shows a short message above the Save/Cancel buttons. */
+    function showFormError(message) {
+      formError.textContent = message;
+      formError.hidden = false;
+    }
+
+    /** Hides the form error message (called whenever the dialog opens). */
+    function hideFormError() {
+      formError.hidden = true;
+      formError.textContent = "";
     }
 
     /** Removes an event (after confirmation) and re-renders. */
@@ -497,7 +535,21 @@
       const date = eventDateInput.value;
       const color = eventColorInput.value;
 
-      if (!name || !date) return; // "required" attributes should already catch this
+      // Validate ourselves (rather than relying on the browser's native
+      // "required" popup, which isn't shown reliably inside a <dialog>)
+      // so the user always gets clear feedback instead of Save silently
+      // doing nothing.
+      if (!name) {
+        showFormError("Please enter a name.");
+        eventNameInput.focus();
+        return;
+      }
+      if (!date) {
+        showFormError("Please choose a date.");
+        eventDateInput.focus();
+        return;
+      }
+      hideFormError();
 
       if (id) {
         // Editing: find the existing event and update its fields.

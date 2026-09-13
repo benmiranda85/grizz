@@ -5,7 +5,83 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Countdown Dashboard</title>
 
+<!-- Three Google Fonts, each doing a different job:
+       Fraunces     - the serif wordmark in the header (a little personality)
+       IBM Plex Sans - everyday UI text (labels, buttons, event names)
+       IBM Plex Mono - the day-count digits inside each circle, so they
+                       read like a real digital countdown/timer display -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;1,600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap">
+
 <style>
+  /* =================================================================
+     DESIGN TOKENS
+     -----------------------------------------------------------------
+     Every color and font in the page is defined once here as a CSS
+     custom property ("token"), then used everywhere else by name
+     (e.g. `color: var(--text)`). Two big benefits of doing it this
+     way instead of hard-coding colors all over the stylesheet:
+       1. Light/dark mode just means redefining these same names.
+       2. Changing the app's look later means editing one place.
+  ================================================================= */
+  :root {
+    /* Warm, slightly parchment-tinted neutrals - not a plain grey - */
+    /* paired with a deep teal accent. */
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --surface-border: #ddd7ca;
+    --text: #211e19;
+    --text-muted: #726c60;
+    --accent: #0d7a6c;
+    --accent-contrast: #ffffff;
+    --danger: #b3261e;
+    --danger-soft-bg: #fbe7e5;
+    --warn-bg: #fbe9d0;
+    --warn-text: #7a4a12;
+    --warn-border: #eccb98;
+
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  /* System dark mode: only kicks in when the visitor hasn't explicitly
+     chosen "light" (that's what the :not([data-theme="light"]) guards
+     against) and their OS/browser is set to dark. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181a;
+      --surface: #1d2325;
+      --surface-border: #2c3336;
+      --text: #edf1ef;
+      --text-muted: #9aa39e;
+      --accent: #35d6bf;
+      --accent-contrast: #06211c;
+      --danger: #ff8079;
+      --danger-soft-bg: #3a1f1d;
+      --warn-bg: #3a2c14;
+      --warn-text: #f2c987;
+      --warn-border: #5c4620;
+    }
+  }
+
+  /* An explicit "dark" choice (set by the hosting page) always wins,
+     even if the OS itself is set to light. */
+  [data-theme="dark"] {
+    --bg: #14181a;
+    --surface: #1d2325;
+    --surface-border: #2c3336;
+    --text: #edf1ef;
+    --text-muted: #9aa39e;
+    --accent: #35d6bf;
+    --accent-contrast: #06211c;
+    --danger: #ff8079;
+    --danger-soft-bg: #3a1f1d;
+    --warn-bg: #3a2c14;
+    --warn-text: #f2c987;
+    --warn-border: #5c4620;
+  }
+
   /* ---------------------------------------------------------------
      Basic page setup. `box-sizing: border-box` makes width/height
      math (padding + border included in the size) predictable
@@ -17,10 +93,16 @@
 
   body {
     margin: 0;
-    padding: 24px 16px 64px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    background: #f4f5f7;
-    color: #1f2430;
+    padding: 32px 16px 64px;
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+    }
   }
 
   /* Center the whole app and keep a comfortable max width so the
@@ -32,16 +114,20 @@
 
   header {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 2rem;
     margin: 0;
+    text-wrap: balance;
   }
 
   /* A reusable "pill" button style used for the Add Event button
@@ -52,8 +138,9 @@
     border: none;
     border-radius: 8px;
     padding: 10px 16px;
-    background: #4f46e5;
-    color: white;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 600;
     transition: opacity 0.15s ease;
   }
 
@@ -61,13 +148,60 @@
     opacity: 0.85;
   }
 
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   button.secondary {
-    background: #e5e7eb;
-    color: #1f2430;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--surface-border);
   }
 
   button.danger {
-    background: #dc2626;
+    background: var(--danger);
+    color: white;
+  }
+
+  .storage-warning {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border: 1px solid var(--warn-border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+
+  .storage-warning code {
+    background: rgba(0, 0, 0, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* ---------------------------------------------------------------
+     The empty state: shown only when there are zero saved events.
+     Styled like a big dashed "slot" waiting for the first countdown,
+     so the very first thing you see still explains what to do.
+  --------------------------------------------------------------- */
+  #emptyState {
+    text-align: center;
+    color: var(--text-muted);
+    border: 1.5px dashed var(--surface-border);
+    border-radius: 16px;
+    padding: 48px 16px;
+    margin: 0;
+  }
+
+  #emptyState strong {
+    display: block;
+    color: var(--text);
+    font-size: 1.1rem;
+    margin-bottom: 4px;
   }
 
   /* ---------------------------------------------------------------
@@ -78,30 +212,8 @@
   #eventGrid {
     display: flex;
     flex-wrap: wrap;
-    gap: 24px;
+    gap: 28px;
     justify-content: center;
-  }
-
-  #emptyState {
-    text-align: center;
-    color: #6b7280;
-    padding: 48px 16px;
-  }
-
-  .storage-warning {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
-    border-radius: 8px;
-    padding: 12px 16px;
-    font-size: 0.9rem;
-    margin-bottom: 20px;
-  }
-
-  .storage-warning code {
-    background: rgba(0, 0, 0, 0.08);
-    padding: 1px 5px;
-    border-radius: 4px;
   }
 
   .event-card {
@@ -120,8 +232,8 @@
     background: none;
     padding: 0;
     border-radius: 50%;
-    width: 110px;
-    height: 110px;
+    width: 112px;
+    height: 112px;
     display: block;
   }
 
@@ -131,23 +243,28 @@
     display: block;
   }
 
-  /* The day-count text drawn inside the SVG. Font size is set in
+  /* The day-count text drawn inside the SVG. It's set in the
+     monospace font and uses tabular figures, the same way a real
+     digital countdown timer lines its digits up. Font size is in
      SVG user-units (the viewBox is 0-100) so it scales with the
      circle automatically. */
   .day-count {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
     font-size: 26px;
     font-weight: 700;
-    fill: #1f2430;
+    fill: var(--text);
   }
 
   .today-label {
-    font-size: 16px;
-    font-weight: 700;
-    fill: #1f2430;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 600;
+    fill: var(--text);
   }
 
   .event-name {
-    margin-top: 8px;
+    margin-top: 10px;
     font-weight: 600;
     word-break: break-word;
   }
@@ -161,13 +278,16 @@
   .event-actions button {
     padding: 4px 8px;
     font-size: 0.75rem;
-    background: #e5e7eb;
-    color: #374151;
+    font-weight: 500;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--surface-border);
   }
 
   .event-actions button.delete-btn {
-    background: #fee2e2;
-    color: #b91c1c;
+    background: var(--danger-soft-bg);
+    color: var(--danger);
+    border-color: transparent;
   }
 
   /* ---------------------------------------------------------------
@@ -177,19 +297,23 @@
   --------------------------------------------------------------- */
   dialog {
     border: none;
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 24px;
     width: 90%;
     max-width: 360px;
+    background: var(--surface);
+    color: var(--text);
   }
 
   dialog::backdrop {
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
   }
 
   dialog h2 {
+    font-family: var(--font-display);
+    font-style: italic;
     margin-top: 0;
-    font-size: 1.1rem;
+    font-size: 1.3rem;
   }
 
   .form-row {
@@ -202,29 +326,31 @@
   .form-row label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-muted);
   }
 
   .form-row input[type="text"],
   .form-row input[type="date"] {
     padding: 8px 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--surface-border);
     border-radius: 6px;
     font: inherit;
+    background: var(--bg);
+    color: var(--text);
   }
 
   .form-row input[type="color"] {
     width: 100%;
     height: 40px;
     padding: 2px;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--surface-border);
     border-radius: 6px;
     background: none;
   }
 
   .form-error {
     margin: -8px 0 16px;
-    color: #b91c1c;
+    color: var(--danger);
     font-size: 0.85rem;
   }
 
@@ -247,7 +373,7 @@
   <div id="app">
 
     <header>
-      <h1>Countdown Dashboard</h1>
+      <h1>Countdown</h1>
       <button id="addEventBtn">+ Add Event</button>
     </header>
 
@@ -263,7 +389,10 @@
     </p>
 
     <!-- Shown only when there are zero events saved. -->
-    <p id="emptyState" hidden>No events yet — add one to get started!</p>
+    <p id="emptyState" hidden>
+      <strong>No countdowns yet</strong>
+      Add a date you're counting down to (or up from) to get started.
+    </p>
 
     <!-- All event circles get rendered into this container by JS. -->
     <div id="eventGrid"></div>
@@ -296,7 +425,7 @@
 
       <div class="form-row">
         <label for="eventColor">Color</label>
-        <input type="color" id="eventColor" value="#4f46e5">
+        <input type="color" id="eventColor" value="#0d7a6c">
       </div>
 
       <!-- We validate with our own JS (see the submit handler below)
@@ -370,7 +499,7 @@
     storageWarning.hidden = canUseStorage;
 
     // In-memory list of events. Each event looks like:
-    //   { id: "abc123", name: "Vacation", date: "2026-07-01", color: "#4f46e5" }
+    //   { id: "abc123", name: "Vacation", date: "2026-07-01", color: "#0d7a6c" }
     // We load whatever was saved last time, or start with an empty list.
     let events = loadEvents();
 
@@ -516,7 +645,7 @@
       dialogTitle.textContent = "Add Event";
       eventIdInput.value = "";
       eventNameInput.value = "";
-      eventColorInput.value = "#4f46e5";
+      eventColorInput.value = "#0d7a6c";
       deleteBtn.hidden = true; // can't delete something that doesn't exist yet
       hideFormError();
 

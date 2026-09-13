@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>To-Do Tracker</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card-bg: #ffffff;
+    --text: #1c1e21;
+    --muted: #6b7280;
+    --border: #e3e5e8;
+    --accent: #2563eb;
+    --accent-text: #ffffff;
+    --done-bg: #f9fafb;
+    --overdue-bg: #fdeceb;
+    --overdue-border: #e0554a;
+    --overdue-text: #b3261e;
+    --today-bg: #fff6e5;
+    --today-border: #d9a441;
+    --danger: #b3261e;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding-block: 20px;
+    padding-inline: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .sub {
+    font-size: 0.8rem; color: var(--muted); margin: 0 0 16px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;
+  }
+  .sub button {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 20px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;
+  }
+  .banner {
+    padding: 10px 12px; border-radius: var(--radius); font-size: 0.85rem; margin-bottom: 14px;
+  }
+  .banner.error { background: var(--overdue-bg); color: var(--overdue-text); border: 1px solid var(--overdue-border); }
+  .banner.info { background: #eaf1fe; color: #1d4ed8; border: 1px solid #bfd7fe; }
+  [hidden] { display: none !important; }
+
+  form#addForm {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px;
+    background: var(--card-bg); padding: 12px; border-radius: var(--radius); border: 1px solid var(--border);
+  }
+  form#addForm input[type="text"] {
+    flex: 1 1 200px; min-width: 0;
+  }
+  form#addForm input[type="date"] {
+    flex: 0 1 150px;
+  }
+  input, button {
+    font-size: 1rem; font-family: inherit;
+  }
+  form#addForm input {
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text);
+  }
+  form#addForm button {
+    padding: 10px 16px; background: var(--accent); color: var(--accent-text);
+    border: none; border-radius: 8px; cursor: pointer; font-weight: 600;
+  }
+  form#addForm button:active { opacity: 0.85; }
+
+  section.group { margin-bottom: 24px; }
+  section.group h2 {
+    font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted); margin: 0 0 8px;
+  }
+  ul.tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li.task {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px;
+  }
+  li.task.done { background: var(--done-bg); }
+  li.task.overdue { background: var(--overdue-bg); border-color: var(--overdue-border); }
+  li.task.today { background: var(--today-bg); border-color: var(--today-border); }
+
+  li.task input[type="checkbox"] {
+    width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent);
+  }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 0.98rem; word-break: break-word; }
+  li.task.done .task-title { text-decoration: line-through; color: var(--muted); }
+  .task-due {
+    font-size: 0.75rem; color: var(--muted); margin-top: 3px;
+  }
+  li.task.overdue .task-due { color: var(--overdue-text); font-weight: 600; }
+  li.task.today .task-due { color: #92660c; font-weight: 600; }
+  .task-del {
+    background: none; border: none; color: var(--muted); font-size: 1.2rem; line-height: 1;
+    cursor: pointer; padding: 4px 6px; flex-shrink: 0;
+  }
+  .task-del:active { color: var(--danger); }
+  .empty { color: var(--muted); font-size: 0.85rem; padding: 8px 2px; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10;
+  }
+  .modal {
+    background: #fff; border-radius: 14px; padding: 20px; max-width: 420px; width: 100%;
+    color: var(--text);
+  }
+  .modal h2 { margin-top: 0; font-size: 1.1rem; }
+  .modal p { font-size: 0.88rem; color: var(--muted); line-height: 1.4; }
+  .modal label { display: block; font-size: 0.85rem; font-weight: 600; margin: 12px 0 4px; }
+  .modal input[type="password"], .modal input[type="text"] {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.95rem;
+  }
+  .modal .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .modal .actions button {
+    flex: 1; padding: 10px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+  }
+  .modal .actions .primary { background: var(--accent); color: #fff; }
+  .modal .actions .secondary { background: #eee; color: var(--text); }
+  .modal .warn {
+    background: var(--overdue-bg); color: var(--overdue-text); border: 1px solid var(--overdue-border);
+    border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; margin-top: 10px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c; --card-bg: #1f2227; --text: #e7e9ea; --muted: #9aa0a6; --border: #2c3036;
+      --done-bg: #1a1c20; --overdue-bg: #3a1f1c; --overdue-border: #8a3a33; --overdue-text: #ff8a80;
+      --today-bg: #332a15; --today-border: #8a6d23;
+    }
+    form#addForm input, .modal { background: #1f2227; color: var(--text); }
+    .modal { background: #1f2227; }
+    .modal .actions .secondary { background: #2c3036; color: var(--text); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📋 To-Do Tracker</h1>
+  <div class="sub">
+    <span id="syncStatus">Loading…</span>
+    <span>
+      <button id="syncBtn" type="button" title="Sync now">↻ Sync</button>
+      <button id="settingsBtn" type="button" title="Token / Gist settings">⚙ Settings</button>
+    </span>
+  </div>
+
+  <div id="errorBanner" class="banner error" hidden></div>
+
+  <form id="addForm">
+    <input type="text" id="newTitle" placeholder="Add a task…" required>
+    <input type="date" id="newDue">
+    <button type="submit">Add</button>
+  </form>
+
+  <section class="group">
+    <h2 id="openHeading">Open</h2>
+    <ul class="tasks" id="openList"></ul>
+    <p class="empty" id="openEmpty" hidden>Nothing open — nice work.</p>
+  </section>
+
+  <section class="group">
+    <h2 id="doneHeading">Done</h2>
+    <ul class="tasks" id="doneList"></ul>
+    <p class="empty" id="doneEmpty" hidden>Nothing completed yet.</p>
+  </section>
+</div>
+
+<div class="overlay" id="tokenOverlay" hidden>
+  <div class="modal">
+    <h2>Connect your GitHub Gist</h2>
+    <p>This tracker stores your tasks in a private GitHub Gist so they sync across your devices. Paste a
+      Personal Access Token with <strong>gist</strong> scope below — it's saved only in this browser's local
+      storage and used to talk to the GitHub API directly from this page.</p>
+    <label for="tokenInput">GitHub Personal Access Token</label>
+    <input type="password" id="tokenInput" placeholder="ghp_…" autocomplete="off">
+    <div class="warn">
+      Anyone with access to this browser/device (or its DevTools) can read this token from local storage.
+      Only use this on devices you trust, and only grant the token <em>gist</em> scope.
+    </div>
+    <div class="actions">
+      <button class="secondary" id="tokenCancel" type="button">Cancel</button>
+      <button class="primary" id="tokenSave" type="button">Save &amp; Connect</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="settingsOverlay" hidden>
+  <div class="modal">
+    <h2>Settings</h2>
+    <p id="gistInfo" style="font-size:0.8rem;"></p>
+    <label for="settingsToken">GitHub Personal Access Token</label>
+    <input type="password" id="settingsToken" placeholder="ghp_…" autocomplete="off">
+    <div class="actions">
+      <button class="secondary" id="settingsCancel" type="button">Close</button>
+      <button class="primary" id="settingsSave" type="button">Save Token</button>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="forgetBtn" type="button" style="flex:1;">Forget token on this device</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LS_TOKEN = "todoTracker.pat";
+  var LS_GIST_ID = "todoTracker.gistId";
+  var GIST_FILENAME = "todo-tracker-data.json";
+  var GIST_DESCRIPTION = "Todo Tracker data — used by a private to-do web app. Do not delete.";
+  var API = "https://api.github.com";
+
+  var seedData = {
+    version: 1,
+    tasks: [
+      { id: "t1", title: "Prep deck for SRA disposal project (10 AM)", dueDate: "2026-09-13", done: false },
+      { id: "t2", title: "Draft early termination notice for Singapore office (this afternoon)", dueDate: "2026-09-13", done: false },
+      { id: "t3", title: "Submit travel claims (this evening)", dueDate: "2026-09-13", done: false },
+      { id: "t4", title: "Work on Chennai strategy note", dueDate: "2026-09-10", done: false },
+      { id: "t5", title: "Explora Rescue chat update", dueDate: "2026-09-09", done: false },
+      { id: "t6", title: "Let boss know about Assurance plan for transactions", dueDate: "2026-09-08", done: false },
+      { id: "t7", title: "Edit CRE journal article and provide photo", dueDate: "2026-09-18", done: false },
+      { id: "t8", title: "Get budget shared for leadership forum (Tue & Wed)", dueDate: null, done: true },
+      { id: "t9", title: "Buy BATIK shirt", dueDate: null, done: true },
+      { id: "t10", title: "Register visitors for office viewing in Shell Central", dueDate: null, done: true }
+    ]
+  };
+
+  var state = { tasks: [] };
+  var gistId = localStorage.getItem(LS_GIST_ID) || null;
+  var saveQueue = Promise.resolve();
+  var suppressAutoSave = false;
+
+  var els = {
+    syncStatus: document.getElementById("syncStatus"),
+    syncBtn: document.getElementById("syncBtn"),
+    settingsBtn: document.getElementById("settingsBtn"),
+    errorBanner: document.getElementById("errorBanner"),
+    addForm: document.getElementById("addForm"),
+    newTitle: document.getElementById("newTitle"),
+    newDue: document.getElementById("newDue"),
+    openList: document.getElementById("openList"),
+    doneList: document.getElementById("doneList"),
+    openEmpty: document.getElementById("openEmpty"),
+    doneEmpty: document.getElementById("doneEmpty"),
+    openHeading: document.getElementById("openHeading"),
+    doneHeading: document.getElementById("doneHeading"),
+    tokenOverlay: document.getElementById("tokenOverlay"),
+    tokenInput: document.getElementById("tokenInput"),
+    tokenSave: document.getElementById("tokenSave"),
+    tokenCancel: document.getElementById("tokenCancel"),
+    settingsOverlay: document.getElementById("settingsOverlay"),
+    settingsToken: document.getElementById("settingsToken"),
+    settingsSave: document.getElementById("settingsSave"),
+    settingsCancel: document.getElementById("settingsCancel"),
+    forgetBtn: document.getElementById("forgetBtn"),
+    gistInfo: document.getElementById("gistInfo")
+  };
+
+  function getToken() { return localStorage.getItem(LS_TOKEN); }
+  function setToken(t) { localStorage.setItem(LS_TOKEN, t); }
+
+  function todayStr() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+
+  function showError(msg) {
+    els.errorBanner.textContent = msg;
+    els.errorBanner.hidden = false;
+  }
+  function clearError() {
+    els.errorBanner.hidden = true;
+    els.errorBanner.textContent = "";
+  }
+  function setStatus(text) { els.syncStatus.textContent = text; }
+
+  function authHeaders() {
+    return {
+      "Authorization": "token " + getToken(),
+      "Accept": "application/vnd.github+json"
+    };
+  }
+
+  // ---------- GitHub Gist API ----------
+
+  function findExistingGist() {
+    return fetch(API + "/gists?per_page=100", { headers: authHeaders() })
+      .then(function (res) {
+        if (!res.ok) throw { httpStatus: res.status, message: "Could not list your gists (" + res.status + ")." };
+        return res.json();
+      })
+      .then(function (gists) {
+        for (var i = 0; i < gists.length; i++) {
+          if (gists[i].files && gists[i].files[GIST_FILENAME]) return gists[i].id;
+        }
+        return null;
+      });
+  }
+
+  function createGist() {
+    var files = {};
+    files[GIST_FILENAME] = { content: JSON.stringify(seedData, null, 2) };
+    return fetch(API + "/gists", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ description: GIST_DESCRIPTION, public: false, files: files })
+    }).then(function (res) {
+      if (!res.ok) throw { httpStatus: res.status, message: "Could not create a gist (" + res.status + ")." };
+      return res.json();
+    }).then(function (gist) {
+      return { id: gist.id, data: seedData };
+    });
+  }
+
+  function fetchGistData(id) {
+    return fetch(API + "/gists/" + id, { headers: authHeaders() })
+      .then(function (res) {
+        if (!res.ok) throw { httpStatus: res.status, message: "Could not read the gist (" + res.status + ")." };
+        return res.json();
+      })
+      .then(function (gist) {
+        var file = gist.files[GIST_FILENAME];
+        if (!file) throw { message: "Gist no longer has the expected data file." };
+        var content = file.content;
+        if (file.truncated) {
+          return fetch(file.raw_url).then(function (r) { return r.text(); }).then(function (t) { return JSON.parse(t); });
+        }
+        return JSON.parse(content);
+      });
+  }
+
+  function saveGistData(id, data) {
+    var files = {};
+    files[GIST_FILENAME] = { content: JSON.stringify(data, null, 2) };
+    return fetch(API + "/gists/" + id, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify({ files: files })
+    }).then(function (res) {
+      if (!res.ok) throw { httpStatus: res.status, message: "Could not save to the gist (" + res.status + ")." };
+      return res.json();
+    });
+  }
+
+  function ensureGistAndLoad() {
+    setStatus("Connecting…");
+    var chain;
+    if (gistId) {
+      chain = fetchGistData(gistId).catch(function (err) {
+        // cached id might be stale/deleted — fall back to search-or-create
+        gistId = null;
+        localStorage.removeItem(LS_GIST_ID);
+        return locateOrCreate();
+      });
+    } else {
+      chain = locateOrCreate();
+    }
+    return chain;
+  }
+
+  function locateOrCreate() {
+    return findExistingGist().then(function (id) {
+      if (id) {
+        gistId = id;
+        localStorage.setItem(LS_GIST_ID, id);
+        return fetchGistData(id);
+      }
+      return createGist().then(function (result) {
+        gistId = result.id;
+        localStorage.setItem(LS_GIST_ID, gistId);
+        return result.data;
+      });
+    });
+  }
+
+  // ---------- rendering ----------
+
+  function render() {
+    var open = state.tasks.filter(function (t) { return !t.done; });
+    var done = state.tasks.filter(function (t) { return t.done; });
+
+    open.sort(function (a, b) {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
+    });
+
+    els.openHeading.textContent = "Open (" + open.length + ")";
+    els.doneHeading.textContent = "Done (" + done.length + ")";
+
+    renderList(els.openList, open, els.openEmpty);
+    renderList(els.doneList, done, els.doneEmpty);
+  }
+
+  function renderList(ul, tasks, emptyEl) {
+    ul.innerHTML = "";
+    emptyEl.hidden = tasks.length !== 0;
+    var today = todayStr();
+
+    tasks.forEach(function (task) {
+      var li = document.createElement("li");
+      li.className = "task";
+      if (task.done) li.classList.add("done");
+      if (!task.done && task.dueDate) {
+        if (task.dueDate < today) li.classList.add("overdue");
+        else if (task.dueDate === today) li.classList.add("today");
+      }
+
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!task.done;
+      checkbox.addEventListener("change", function () { toggleDone(task.id, checkbox.checked); });
+
+      var body = document.createElement("div");
+      body.className = "task-body";
+
+      var title = document.createElement("div");
+      title.className = "task-title";
+      title.textContent = task.title;
+      body.appendChild(title);
+
+      if (task.dueDate) {
+        var due = document.createElement("div");
+        due.className = "task-due";
+        var label = "Due " + task.dueDate;
+        if (!task.done && task.dueDate < today) label = "Overdue — was due " + task.dueDate;
+        else if (!task.done && task.dueDate === today) label = "Due today";
+        due.textContent = label;
+        body.appendChild(due);
+      }
+
+      var del = document.createElement("button");
+      del.className = "task-del";
+      del.type = "button";
+      del.title = "Delete task";
+      del.textContent = "✕";
+      del.addEventListener("click", function () { deleteTask(task.id); });
+
+      li.appendChild(checkbox);
+      li.appendChild(body);
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+  }
+
+  // ---------- mutations ----------
+
+  function persist() {
+    if (suppressAutoSave || !gistId) return;
+    setStatus("Saving…");
+    saveQueue = saveQueue.then(function () {
+      return saveGistData(gistId, state);
+    }).then(function () {
+      clearError();
+      setStatus("Saved just now");
+    }).catch(function (err) {
+      setStatus("Save failed");
+      showError((err && err.message) || "Could not save changes.");
+    });
+  }
+
+  function toggleDone(id, done) {
+    var t = state.tasks.find(function (x) { return x.id === id; });
+    if (!t) return;
+    t.done = done;
+    render();
+    persist();
+  }
+
+  function deleteTask(id) {
+    state.tasks = state.tasks.filter(function (t) { return t.id !== id; });
+    render();
+    persist();
+  }
+
+  function addTask(title, dueDate) {
+    var id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Date.now();
+    state.tasks.push({ id: id, title: title, dueDate: dueDate || null, done: false });
+    render();
+    persist();
+  }
+
+  // ---------- init / sync flow ----------
+
+  function loadAndRender() {
+    clearError();
+    setStatus("Syncing…");
+    return ensureGistAndLoad().then(function (data) {
+      suppressAutoSave = true;
+      state = data && data.tasks ? data : { tasks: [] };
+      render();
+      suppressAutoSave = false;
+      setStatus("Synced " + new Date().toLocaleTimeString());
+    }).catch(function (err) {
+      setStatus("Not synced");
+      if (err && err.httpStatus === 401) {
+        showError("That token was rejected by GitHub. Open Settings and re-enter a valid token with gist scope.");
+      } else {
+        showError((err && err.message) || "Could not reach GitHub.");
+      }
+    });
+  }
+
+  function boot() {
+    if (!getToken()) {
+      els.tokenOverlay.hidden = false;
+      setStatus("Waiting for token…");
+      return;
+    }
+    loadAndRender();
+  }
+
+  els.addForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var title = els.newTitle.value.trim();
+    if (!title) return;
+    var due = els.newDue.value || null;
+    addTask(title, due);
+    els.newTitle.value = "";
+    els.newDue.value = "";
+    els.newTitle.focus();
+  });
+
+  els.syncBtn.addEventListener("click", function () {
+    if (!getToken()) { els.tokenOverlay.hidden = false; return; }
+    loadAndRender();
+  });
+
+  els.settingsBtn.addEventListener("click", function () {
+    els.gistInfo.textContent = gistId
+      ? "Connected to gist: " + gistId
+      : "Not connected to a gist yet.";
+    els.settingsToken.value = "";
+    els.settingsOverlay.hidden = false;
+  });
+  els.settingsCancel.addEventListener("click", function () { els.settingsOverlay.hidden = true; });
+  els.settingsSave.addEventListener("click", function () {
+    var v = els.settingsToken.value.trim();
+    if (!v) { els.settingsOverlay.hidden = true; return; }
+    setToken(v);
+    els.settingsOverlay.hidden = true;
+    loadAndRender();
+  });
+  els.forgetBtn.addEventListener("click", function () {
+    if (!confirm("Remove the saved token from this device? You'll need to paste it again next time.")) return;
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_GIST_ID);
+    els.settingsOverlay.hidden = true;
+    location.reload();
+  });
+
+  els.tokenCancel.addEventListener("click", function () { els.tokenOverlay.hidden = true; });
+  els.tokenSave.addEventListener("click", function () {
+    var v = els.tokenInput.value.trim();
+    if (!v) return;
+    setToken(v);
+    els.tokenOverlay.hidden = true;
+    els.tokenInput.value = "";
+    loadAndRender();
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

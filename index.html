@@ -88,6 +88,22 @@
     padding: 48px 16px;
   }
 
+  .storage-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+  }
+
+  .storage-warning code {
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
   .event-card {
     position: relative;
     width: 130px;
@@ -235,6 +251,17 @@
       <button id="addEventBtn">+ Add Event</button>
     </header>
 
+    <!-- Shown only if the browser won't let us use localStorage at all
+         (this happens for some browsers, notably Safari, when a page
+         is opened as a local file:// URL instead of through a server). -->
+    <p id="storageWarning" class="storage-warning" hidden>
+      ⚠️ Your browser is blocking saved data for local files, so events
+      added below will disappear if you close or reload this page.
+      To fix it, serve this file from a local server instead of opening
+      it directly (for example: run <code>python3 -m http.server</code>
+      in this folder, then visit <code>http://localhost:8000</code>).
+    </p>
+
     <!-- Shown only when there are zero events saved. -->
     <p id="emptyState" hidden>No events yet — add one to get started!</p>
 
@@ -318,6 +345,29 @@
     const deleteBtn = document.getElementById("deleteBtn");
     const cancelBtn = document.getElementById("cancelBtn");
     const formError = document.getElementById("formError");
+    const storageWarning = document.getElementById("storageWarning");
+
+    /**
+     * Some browsers (notably Safari) refuse to let a page use
+     * localStorage at all when it's opened as a local file:// URL,
+     * rather than served over http(s). When that happens, calling
+     * localStorage.setItem() throws instead of just failing quietly -
+     * so we test it once up front and remember the result, instead of
+     * finding out mid-save.
+     */
+    function storageIsAvailable() {
+      try {
+        const testKey = "__storage_test__";
+        localStorage.setItem(testKey, "1");
+        localStorage.removeItem(testKey);
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    const canUseStorage = storageIsAvailable();
+    storageWarning.hidden = canUseStorage;
 
     // In-memory list of events. Each event looks like:
     //   { id: "abc123", name: "Vacation", date: "2026-07-01", color: "#4f46e5" }
@@ -327,10 +377,12 @@
     /**
      * Reads the saved events out of localStorage.
      * Wrapped in try/catch because localStorage can contain garbage
-     * (e.g. if it was edited by hand, or from an older app version)
-     * and JSON.parse would throw on invalid data.
+     * (e.g. if it was edited by hand, or from an older app version),
+     * or be unavailable altogether (see storageIsAvailable above) -
+     * either way we fall back to an empty list rather than crashing.
      */
     function loadEvents() {
+      if (!canUseStorage) return [];
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         return raw ? JSON.parse(raw) : [];
@@ -340,9 +392,19 @@
       }
     }
 
-    /** Writes the current `events` array to localStorage as JSON. */
+    /**
+     * Writes the current `events` array to localStorage as JSON.
+     * Guarded the same way as loadEvents(): if storage isn't available
+     * we just skip saving (the warning banner already told the user
+     * why) instead of throwing and breaking whatever called us.
+     */
     function saveEvents() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+      if (!canUseStorage) return;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
+      } catch (err) {
+        console.error("Could not save events.", err);
+      }
     }
 
     /**

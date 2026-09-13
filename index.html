@@ -443,6 +443,27 @@
     </form>
   </dialog>
 
+  <!-- ---------------------------------------------------------------
+       A second, small dialog just for "are you sure you want to
+       delete this?" confirmations.
+
+       We build our own instead of using the browser's built-in
+       confirm() function on purpose: confirm() is a native popup,
+       and native popups like it are commonly blocked by browsers
+       when a page runs inside a sandboxed iframe (which is how this
+       page may be embedded/hosted) - the call just silently does
+       nothing, which made Delete look broken. A <dialog> we draw
+       ourselves doesn't have that problem.
+  --------------------------------------------------------------- -->
+  <dialog id="confirmDialog">
+    <h2>Delete event?</h2>
+    <p id="confirmMessage"></p>
+    <div class="dialog-buttons">
+      <button type="button" id="confirmCancelBtn" class="secondary">Cancel</button>
+      <button type="button" id="confirmDeleteBtn" class="danger">Delete</button>
+    </div>
+  </dialog>
+
   <script>
     /* =================================================================
        COUNTDOWN DASHBOARD - app logic
@@ -475,6 +496,14 @@
     const cancelBtn = document.getElementById("cancelBtn");
     const formError = document.getElementById("formError");
     const storageWarning = document.getElementById("storageWarning");
+    const confirmDialog = document.getElementById("confirmDialog");
+    const confirmMessage = document.getElementById("confirmMessage");
+    const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+    const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+    // Remembers which event the confirm dialog is currently asking
+    // about, so the "Delete" button inside it knows what to remove.
+    let pendingDeleteId = null;
 
     /**
      * Some browsers (notably Safari) refuse to let a page use
@@ -623,7 +652,7 @@
         // pre-filled with this event's details.
         card.querySelector(".circle-button").addEventListener("click", () => openEditDialog(event.id));
         card.querySelector(".edit-btn").addEventListener("click", () => openEditDialog(event.id));
-        card.querySelector(".delete-btn").addEventListener("click", () => deleteEvent(event.id));
+        card.querySelector(".delete-btn").addEventListener("click", () => askToDeleteEvent(event.id));
 
         eventGrid.appendChild(card);
       }
@@ -690,14 +719,23 @@
       formError.textContent = "";
     }
 
-    /** Removes an event (after confirmation) and re-renders. */
-    function deleteEvent(id) {
+    /**
+     * Opens the "Delete event?" confirmation dialog for one event.
+     * The actual deletion only happens if the user then clicks the
+     * dialog's own "Delete" button (see confirmDeleteBtn below).
+     */
+    function askToDeleteEvent(id) {
       const event = events.find((e) => e.id === id);
       if (!event) return;
 
-      const confirmed = confirm(`Delete "${event.name}"? This can't be undone.`);
-      if (!confirmed) return;
+      pendingDeleteId = id;
+      confirmMessage.textContent = `Delete "${event.name}"? This can't be undone.`;
+      confirmDialog.showModal();
+    }
 
+    /** Removes an event by id and re-renders. No confirmation here - */
+    /** that already happened before this is called.                 */
+    function removeEvent(id) {
       events = events.filter((e) => e.id !== id);
       saveEvents();
       render();
@@ -708,12 +746,25 @@
     addEventBtn.addEventListener("click", openAddDialog);
     cancelBtn.addEventListener("click", () => eventDialog.close());
 
-    // Clicking the "Delete" button inside the dialog deletes the
-    // event currently being edited, then closes the dialog.
+    // The confirm dialog's own buttons: Cancel just closes it, and
+    // Delete actually removes the event it was opened for.
+    confirmCancelBtn.addEventListener("click", () => {
+      pendingDeleteId = null;
+      confirmDialog.close();
+    });
+
+    confirmDeleteBtn.addEventListener("click", () => {
+      if (pendingDeleteId) removeEvent(pendingDeleteId);
+      pendingDeleteId = null;
+      confirmDialog.close();
+      eventDialog.close(); // no-op if the edit dialog wasn't open
+    });
+
+    // Clicking the "Delete" button inside the edit dialog asks for
+    // confirmation first (see confirmDeleteBtn above), rather than
+    // deleting immediately - the edit dialog stays open if you cancel.
     deleteBtn.addEventListener("click", () => {
-      const id = eventIdInput.value;
-      deleteEvent(id);
-      eventDialog.close();
+      askToDeleteEvent(eventIdInput.value);
     });
 
     // Handles Save for both "Add" and "Edit", since both modes share
